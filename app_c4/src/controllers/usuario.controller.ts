@@ -1,21 +1,20 @@
+import {service} from '@loopback/core';
+import {AuthService} from '../services';
+import axios from 'axios';
+
+
 import {
   Count,
   CountSchema,
   Filter,
   FilterExcludingWhere,
   repository,
-  Where,
+  Where
 } from '@loopback/repository';
 import {
-  post,
-  param,
-  get,
-  getModelSchemaRef,
-  patch,
-  put,
-  del,
-  requestBody,
-  response,
+  del, get,
+  getModelSchemaRef, param, patch, post, put, requestBody,
+  response
 } from '@loopback/rest';
 import {Usuario} from '../models';
 import {UsuarioRepository} from '../repositories';
@@ -24,6 +23,11 @@ export class UsuarioController {
   constructor(
     @repository(UsuarioRepository)
     public usuarioRepository : UsuarioRepository,
+
+    //dependencia del servicio de autentificacion
+    @service(AuthService)
+    public servicioAuth: AuthService
+
   ) {}
 
   @post('/usuarios')
@@ -44,7 +48,66 @@ export class UsuarioController {
     })
     usuario: Omit<Usuario, 'id'>,
   ): Promise<Usuario> {
-    return this.usuarioRepository.create(usuario);
+    // creamos la clave antes de crear la usario
+
+
+    //return this.usuarioRepository.create(usuario); --- se replaza por lo deabajo
+
+
+  let key = this.servicioAuth.keyGeneration();
+  let codeKey = this.servicioAuth.codeKey(key);
+  usuario.Password = codeKey;
+  let p = await this.usuarioRepository.create(usuario);
+
+    // Notificamos al usuario por correo
+  let destino = usuario.Email;
+   // Notifiamos al usuario por telefono y cambiar la url por send_sms
+  //let destino = usuario.Number;
+
+  let asunto = 'Platform user registration';
+  let contenido = `Hello, ${usuario.Name} ${usuario.Surnames} your password on the portal is, usando la APP creada por edison_A: ${key}`
+  axios({
+    method: 'post',
+    url: 'http://localhost:5000/send_email', //Si quiero enviar por mensaje cambiar a send_sms
+
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    },
+      data: {
+        destino: destino,
+        asunto: asunto,
+        contenido: contenido
+      }
+    }).then((data: any) => {
+      console.log(data)
+    }).catch((err: any) => {
+      console.log(err)
+    })
+    //let destino = usuario.Number;
+  axios({
+    method: 'post',
+    url: 'http://localhost:5000/send_sms', //Si quiero enviar por mensaje cambiar a send_sms
+
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    },
+      data: {
+        destino: destino,
+        asunto: asunto,
+        contenido: contenido
+      }
+      }).then((data: any) => {
+        console.log(data)
+      }).catch((err: any) => {
+        console.log(err)
+      })
+
+  return p;
+
+
+
   }
 
   @get('/usuarios/count')
