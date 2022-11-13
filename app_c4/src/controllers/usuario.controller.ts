@@ -1,6 +1,8 @@
 import {service} from '@loopback/core';
-import {AuthService} from '../services';
+import {HttpErrors} from '@loopback/rest';
 import axios from 'axios';
+import {Credentials} from '../models';
+import {AuthService} from '../services';
 
 
 import {
@@ -19,6 +21,13 @@ import {
 import {Usuario} from '../models';
 import {UsuarioRepository} from '../repositories';
 
+// definimos cuales son los servicios web que van a requerir autorización
+import {authenticate} from '@loopback/authentication';
+import {setting} from '../config/config';
+
+@authenticate("admins") // autorizacion
+
+
 export class UsuarioController {
   constructor(
     @repository(UsuarioRepository)
@@ -29,7 +38,7 @@ export class UsuarioController {
     public servicioAuth: AuthService
 
   ) {}
-
+  @authenticate.skip() // no le pide autentificacion de token a "@post ('usuarios")"
   @post('/usuarios')
   @response(200, {
     description: 'Usuario model instance',
@@ -54,22 +63,62 @@ export class UsuarioController {
     //return this.usuarioRepository.create(usuario); --- se replaza por lo deabajo
 
 
-  let key = this.servicioAuth.keyGeneration();
-  let codeKey = this.servicioAuth.codeKey(key);
-  usuario.Password = codeKey;
-  let p = await this.usuarioRepository.create(usuario);
+  let key = this.servicioAuth.keyGeneration();// genera una clave dinamica o aleatoria
+  let codeKey = this.servicioAuth.codeKey(key);// encriptamos la clave aleatoria
+  usuario.Password = codeKey;   // asociamos la clave al usuario
 
-    // Notificamos al usuario por correo
-  let destino = usuario.Email;
-   // Notifiamos al usuario por telefono y cambiar la url por send_sms
-  //let destino = usuario.Number;
 
   let asunto = 'Platform user registration';
   let contenido = `Hello, ${usuario.Name} ${usuario.Surnames} your password on the portal is, usando la APP creada por edison_A: ${key}`
+  let p = await this.usuarioRepository.create(usuario);
+
+    // Notificamos al usuario por correo
+  let destino = '';   //usuario.Email o usuario.Number
+  let tipe = '';
+  tipe = 'two'
+  let webservice='';
+  if (tipe =='Email' ){
+    destino= usuario.Email;
+    webservice='send_email'
+  }
+  if (tipe == "Number"){
+    destino= usuario.Number
+    webservice='send_sms'
+  }else{
+    destino= usuario.Email
+    webservice='send_email'
+    // mandarlo por los dos
+    axios({
+      method: 'post',
+      url: setting.baseURL+ webservice,
+
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+        data: {
+          destino: destino,
+          asunto: asunto,
+          contenido: contenido
+        }
+      }).then((data: any) => {
+        console.log(data)
+      }).catch((err: any) => {
+        console.log(err)
+      })
+  destino= usuario.Number
+  webservice='send_sms'
+
+
+  }
+   // Notifiamos al usuario por telefono y cambiar la url por send_sms
+  //let destino = usuario.Number;
+
+
   axios({
     method: 'post',
-    url: 'http://localhost:5000/send_email', //Si quiero enviar por mensaje cambiar a send_sms
-
+    //url: 'http://localhost:5000/send_email', //Si quiero enviar por mensaje cambiar a send_sms
+    url: setting.baseURL+ webservice,
     headers: {
       'Accept': 'application/json',
       'Content-Type': 'application/json'
@@ -85,24 +134,8 @@ export class UsuarioController {
       console.log(err)
     })
     //let destino = usuario.Number;
-  axios({
-    method: 'post',
-    url: 'http://localhost:5000/send_sms', //Si quiero enviar por mensaje cambiar a send_sms
-
-    headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json'
-    },
-      data: {
-        destino: destino,
-        asunto: asunto,
-        contenido: contenido
-      }
-      }).then((data: any) => {
-        console.log(data)
-      }).catch((err: any) => {
-        console.log(err)
-      })
+    console.log(destino,asunto,contenido);
+    console.log(webservice);
 
   return p;
 
@@ -157,7 +190,7 @@ export class UsuarioController {
   ): Promise<Count> {
     return this.usuarioRepository.updateAll(usuario, where);
   }
-
+  @authenticate.skip()
   @get('/usuarios/{id}')
   @response(200, {
     description: 'Usuario model instance',
@@ -210,4 +243,43 @@ export class UsuarioController {
   async deleteById(@param.path.string('id') id: string): Promise<void> {
     await this.usuarioRepository.deleteById(id);
   }
+
+  // Web login...
+  // Servicio de login
+
+ //Servicio de login
+  @authenticate.skip() // lo que hace es que no pide autentificacion a la siguiente linea
+  @post('/login', {
+    responses: {
+      '200': {
+        description: 'Usuario identification'
+      }
+    }
+  })
+  async login( //async
+    @requestBody() Credentials: Credentials  // le paso la estructura
+  ) {
+
+    let p= await
+    this.servicioAuth.identifyPerson(Credentials.usuario, Credentials.Password);
+    if (p){
+      let token = this.servicioAuth.generarTokenJWT(p);
+      return {
+        status: "success, modo OK",
+        data:{
+          Name: p.Name,
+          Surnames : p.Surnames,
+          Email : p.Email,
+          id : p.id
+
+        },
+        token: token
+      }
+    }else {
+      throw new HttpErrors[402]("invalid data ");
+    }
+  }
+
+
+
 }

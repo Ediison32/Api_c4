@@ -37,6 +37,11 @@ const PING_RESPONSE: ResponseObject = {
 /**
  * A simple controller to bounce back http requests
  */
+
+
+ // definimos cuales son los servicios web que van a requerir autorización
+import {authenticate} from '@loopback/authentication';
+@authenticate("admins")
 export class PingController {
   constructor(@inject(RestBindings.Http.REQUEST) private req: Request) {}
 

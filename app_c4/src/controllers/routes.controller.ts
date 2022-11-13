@@ -20,6 +20,9 @@ import {
 import {Rutas} from '../models';
 import {RutasRepository} from '../repositories';
 
+// definimos cuales son los servicios web que van a requerir autorización
+import {authenticate} from '@loopback/authentication';
+@authenticate("admins")
 export class RoutesController {
   constructor(
     @repository(RutasRepository)

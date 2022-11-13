@@ -20,6 +20,11 @@ import {
 import {Vuelos} from '../models';
 import {VuelosRepository} from '../repositories';
 
+// definimos cuales son los servicios web que van a requerir autorización
+import {authenticate} from '@loopback/authentication';
+@authenticate("admins")
+
+
 export class VuelosController {
   constructor(
     @repository(VuelosRepository)

@@ -65,4 +65,5 @@ typings/
 
 
 #database
-config.json
+
+src/config/config.ts

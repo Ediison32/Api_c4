@@ -19,6 +19,13 @@ import {
 } from '@loopback/rest';
 import {Aeropuerto} from '../models';
 import {AeropuertoRepository} from '../repositories';
+ // definimos cuales son los servicios web que van a requerir autorización
+import {authenticate} from '@loopback/authentication';
+@authenticate("admins")
+
+
+
+
 
 export class AeropuertoController {
   constructor(
